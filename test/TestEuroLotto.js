@@ -1,4 +1,4 @@
-const DeathRollBasics = artifacts.require("./EuroLotto");
+const EuroLotto = artifacts.require("./EuroLotto");
 const { assert } = require("chai");
 const web3 = require("web3");
 const toBN = web3.utils.toBN;
@@ -10,6 +10,51 @@ const toWei = web3.utils.toWei;
 // https://blog.8bitzen.com/posts/11-03-2019-truffle-how-to-test-a-none-view-function-that-returns/
 
 require("chai").use(require("chai-as-promised")).should();
+let euroLottoGlobal;
+const PHASE_NOT_STARTED= 0;
+const PHASE_JOIN = 1;
+const PHASE_REVEAL = 2;
+
+contract("EuroLotto", ([deployer, user1, user2, user3]) => {
+  beforeEach(async () => {
+    euroLottoGlobal = await EuroLotto.new();
+  });
+
+  describe("testing joinSession", () => {
+    describe("success", () => {
+      it("join not yet started session starts a new session with the single corresponding joining participant", async () => {
+        const result = await euroLottoGlobal.joinLotto(
+          "commitment",
+          {
+            from: user1,
+            value: toWei("1"),
+          }
+        );
+        var participant = await euroLottoGlobal.sessionIdToParticipants(1,0);
+        var session = await euroLottoGlobal.idToSession(1);
+        assert.isTrue(session["phase"] == PHASE_JOIN)
+        assert.isTrue(session["participantsLength"] == 1)
+        assert.isTrue(participant["user"] == user1);
+        assert.isTrue(participant["commitment"] == "commitment");
+        assert.isTrue(participant["hasRevealed"] == false);
+        assert.isTrue(participant["message"] == "");
+      });
+      
+      it("join with lacking ether reverts", async () => {
+        const result = await euroLottoGlobal.joinLotto("commitment",
+          {
+            from: user1,
+            value: toWei("2"),
+          }
+        )
+        .should.be.rejectedWith(
+                      "You must deposit exactly 1 ether"
+                    );;
+      });
+    });
+  });
+});
+
 // let deathRollBasicsGlobal;
 // const GAMESTATE_OPEN = 0;
 
