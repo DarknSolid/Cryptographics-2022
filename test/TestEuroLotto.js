@@ -11,7 +11,7 @@ const toWei = web3.utils.toWei;
 
 require("chai").use(require("chai-as-promised")).should();
 let euroLottoGlobal;
-const PHASE_NOT_STARTED= 0;
+const PHASE_NOT_STARTED = 0;
 const PHASE_JOIN = 1;
 const PHASE_REVEAL = 2;
 
@@ -23,33 +23,61 @@ contract("EuroLotto", ([deployer, user1, user2, user3]) => {
   describe("testing joinSession", () => {
     describe("success", () => {
       it("join not yet started session starts a new session with the single corresponding joining participant", async () => {
-        const result = await euroLottoGlobal.joinLotto(
-          "commitment",
-          {
-            from: user1,
-            value: toWei("1"),
-          }
-        );
-        var participant = await euroLottoGlobal.sessionIdToParticipants(1,0);
+        const result = await euroLottoGlobal.joinLotto("commitment", {
+          from: user1,
+          value: toWei("1"),
+        });
+        var participant = await euroLottoGlobal.sessionIdToParticipants(1, 0);
         var session = await euroLottoGlobal.idToSession(1);
-        assert.isTrue(session["phase"] == PHASE_JOIN)
-        assert.isTrue(session["participantsLength"] == 1)
+        var participantId = await euroLottoGlobal.participantId(1, user1);
+        console.log(participantId);
+        assert.isTrue(participantId == 0);
+        assert.isTrue(session["phase"] == PHASE_JOIN);
+        assert.isTrue(session["participantsLength"] == 1);
         assert.isTrue(participant["user"] == user1);
         assert.isTrue(participant["commitment"] == "commitment");
         assert.isTrue(participant["hasRevealed"] == false);
         assert.isTrue(participant["message"] == "");
       });
-      
       it("join with lacking ether reverts", async () => {
-        const result = await euroLottoGlobal.joinLotto("commitment",
-          {
+        const result = await euroLottoGlobal
+          .joinLotto("commitment", {
             from: user1,
             value: toWei("2"),
-          }
-        )
-        .should.be.rejectedWith(
-                      "You must deposit exactly 1 ether"
-                    );;
+          })
+          .should.be.rejectedWith("You must deposit exactly 1 ether");
+      });
+      it("second person join gets correct index", async () => {
+        var result = await euroLottoGlobal.joinLotto("commitment", {
+          from: user1,
+          value: toWei("1"),
+        });
+        result = await euroLottoGlobal.joinLotto("commitment", {
+          from: user2,
+          value: toWei("1"),
+        });
+        var participant1 = await euroLottoGlobal.sessionIdToParticipants(1, 0);
+        var participant1Id = await euroLottoGlobal.participantId(1, user1);
+        assert.isTrue(participant1Id == 0);
+        assert.isTrue(participant1["user"] == user1);
+        var participant2 = await euroLottoGlobal.sessionIdToParticipants(1, 1);
+        var participant2Id = await euroLottoGlobal.participantId(1, user2);
+        assert.isTrue(participant2Id == 1);
+        assert.isTrue(participant2["user"] == user2);
+      });
+      it("a person can only join once", async () => {
+        var result = await euroLottoGlobal.joinLotto("commitment", {
+          from: user1,
+          value: toWei("1"),
+        });
+        result = await euroLottoGlobal
+          .joinLotto("commitment", {
+            from: user1,
+            value: toWei("1"),
+          })
+          .should.be.rejectedWith(
+            "You are already participating in this session"
+          );
       });
     });
   });
