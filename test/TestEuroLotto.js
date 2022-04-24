@@ -29,13 +29,12 @@ contract("EuroLotto", ([deployer, user1, user2, user3]) => {
         });
         var participant = await euroLottoGlobal.sessionIdToParticipants(1, 0);
         var session = await euroLottoGlobal.idToSession(1);
-        var participantId = await euroLottoGlobal.participantId(1, user1);
-        console.log(participantId);
+        var participantId = await euroLottoGlobal.indexOfParticipant(1, user1);
         assert.isTrue(participantId == 0);
         assert.isTrue(session["phase"] == PHASE_JOIN);
         assert.isTrue(session["participantsLength"] == 1);
         assert.isTrue(participant["user"] == user1);
-        assert.isTrue(participant["commitment"] == "commitment");
+        assert.isTrue(participant["commitment"] == stringToByte32AsHex("commitment"));
         assert.isTrue(participant["hasRevealed"] == false);
         assert.isTrue(participant["message"] == "");
       });
@@ -57,11 +56,11 @@ contract("EuroLotto", ([deployer, user1, user2, user3]) => {
           value: toWei("1"),
         });
         var participant1 = await euroLottoGlobal.sessionIdToParticipants(1, 0);
-        var participant1Id = await euroLottoGlobal.participantId(1, user1);
+        var participant1Id = await euroLottoGlobal.indexOfParticipant(1, user1);
         assert.isTrue(participant1Id == 0);
         assert.isTrue(participant1["user"] == user1);
         var participant2 = await euroLottoGlobal.sessionIdToParticipants(1, 1);
-        var participant2Id = await euroLottoGlobal.participantId(1, user2);
+        var participant2Id = await euroLottoGlobal.indexOfParticipant(1, user2);
         assert.isTrue(participant2Id == 1);
         assert.isTrue(participant2["user"] == user2);
       });
@@ -82,6 +81,17 @@ contract("EuroLotto", ([deployer, user1, user2, user3]) => {
     });
   });
 });
+
+function stringToByte32AsHex(string) {
+  bytes = web3.utils.asciiToHex(string);
+  var temp = "";
+  if (bytes.length < 66) {
+    for (let i = 0; i < 66 - bytes.length; i++) {
+      temp += "0"
+    }
+  }
+  return bytes + temp;
+}
 
 // let deathRollBasicsGlobal;
 // const GAMESTATE_OPEN = 0;
