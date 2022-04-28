@@ -1,14 +1,17 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.6.0 <0.9.0;
+pragma solidity ^0.8.10;
+
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 contract EuroLotto {
 
-    uint256 currentSessionId;
+    uint256 public currentSessionId;
 
     mapping (uint256 => Session) public idToSession;
     mapping (uint256 => mapping(address => uint256)) public indexOfParticipant; // session id -> msg.sender -> index
 
     event RevealPhaseStarted(uint256 indexed sessionId);
+    event SessionEnded(uint256 indexed sessionId, address indexed winner, uint256 reward);
 
     mapping (uint256 => mapping(uint256 => Participant)) public sessionIdToParticipants; //session id to participant index to participant
 
@@ -32,23 +35,23 @@ contract EuroLotto {
     }
 
     struct Participant {
-        address user;
+        address payable user;
         bytes32 commitment;
-        string message;
+        uint256 message;
         bool hasRevealed;
     }
 
     uint256 depositAmount = 1 ether;
-    enum Phase{notStarted, join, reveal}
-    uint256 joinPhaseMaxDurationSeconds = 60 * 10; // ten minutes
+    enum Phase{notStarted, join, reveal, finished}
+    uint256 joinPhaseMaxDurationSeconds = 60 * 10;  //ten minutes
     
-    function joinLotto(string memory commitment) external payable IsNotExistingParticipant(msg.sender) returns(uint256 id) {
+    function joinLotto(bytes32 commitment) external payable IsNotExistingParticipant(msg.sender) returns(uint256 id) {
         Session memory curSession = idToSession[currentSessionId];
-        require(curSession.phase != Phase.reveal, "Session is already running");
+        require(curSession.phase != Phase.reveal || curSession.phase != Phase.finished, "Session is already running");
         require(msg.value == depositAmount, "You must deposit exactly 1 ether");
 
         if (curSession.phase == Phase.notStarted) {
-            Participant memory p = Participant(msg.sender, bytes32(abi.encodePacked(commitment)), "", false);
+            Participant memory p = Participant(payable(msg.sender), commitment, 0, false);
             currentSessionId = currentSessionId + 1;
             sessionIdToParticipants[currentSessionId][0] = p;
             Session memory newSession = Session(1, Phase.join, block.timestamp, 0);
@@ -57,26 +60,30 @@ contract EuroLotto {
             idToSession[currentSessionId] = newSession;
         } 
         else if (curSession.phase == Phase.join) {
-            sessionIdToParticipants[currentSessionId][curSession.participantsLength] = Participant(msg.sender, bytes32(abi.encodePacked(commitment)), "", false);
+            sessionIdToParticipants[currentSessionId][curSession.participantsLength] = Participant(payable(msg.sender), commitment, 0, false);
             indexOfParticipant[currentSessionId][msg.sender] = curSession.participantsLength;
-            curSession.participantsLength += 1;
-        }
+            Session storage session = idToSession[currentSessionId];
+            session.participantsLength = session.participantsLength + 1;
 
-        if (hasTimeExceeded(curSession.startTime)) {
-            curSession.phase == Phase.reveal;
-            emit RevealPhaseStarted(currentSessionId);
+            if (hasTimeExceeded(session.startTime)) {
+                session.phase = Phase.reveal;
+                session.startTime = block.timestamp;
+                emit RevealPhaseStarted(currentSessionId);
+            }
         }
 
         return currentSessionId;
     }
 
-    function openCommitment(string memory randomValue, string memory message) external IsExistingParticipant(msg.sender) {
+    function openCommitment(string memory randomValue, uint256 message) external IsExistingParticipant(msg.sender) {
         Participant storage participant = getParticipant(currentSessionId, msg.sender);
-        string memory concatedOpening = string(abi.encodePacked(randomValue, message));
+        
+        string memory concatedOpening = string(abi.encodePacked(randomValue, Strings.toString(message)));
         bytes32 openingHash = keccak256(abi.encodePacked(concatedOpening));
 
         require (idToSession[currentSessionId].phase == Phase.reveal, "The session is not in reveal phase");
         require(participant.hasRevealed == false, "You have already opened your commitment");// ensure that user has not already opened
+        
         // the strings length for gas efficiency: https://fravoll.github.io/solidity-patterns/string_equality_comparison.html
         // compare the hashes
         require(
@@ -87,26 +94,49 @@ contract EuroLotto {
 
         Session storage currentSession = idToSession[currentSessionId];
         participant.hasRevealed = true;
+        participant.message = message;
         currentSession.amountOfReveals += 1;
 
-        if (currentSession.amountOfReveals == currentSession.participantsLength) {
-            endSession();
+        if (currentSession.amountOfReveals == currentSession.participantsLength || hasTimeExceeded(currentSession.startTime)) {
+            endSession(currentSession);
         }
     }
 
-    function endSession() internal {
-        //TODO find the winner
-            //Pay the winner
-            //emit event
-            //bump the current session id
+    function endSession(Session storage session) internal {
+        session.phase = Phase.finished;
+
+        address payable[] memory competingParticipants = new address payable[](session.participantsLength); 
+        uint256 competingParticipantsLength = 0; // index of last added item to "competingParticipants"
+        uint256 messageSum = 0;
+        for (uint256 i; i < session.participantsLength; i++) {
+            Participant storage participant = getParticipant(currentSessionId, i);
+            if (participant.hasRevealed) {
+                competingParticipants[competingParticipantsLength] = participant.user;
+                messageSum += participant.message % session.participantsLength;
+                competingParticipantsLength += 1;
+            }
+        }
+
+        uint256 winnerIndex = messageSum % competingParticipantsLength;
+        address payable winner = competingParticipants[winnerIndex];
+
+        uint256 reward = depositAmount * session.participantsLength;
+        winner.transfer(reward);
+
+        emit SessionEnded(currentSessionId, winner, reward);
+        currentSessionId += 1;
     }
 
-    function hasTimeExceeded(uint256 start) private view returns(bool) {
-        return block.timestamp - start >= joinPhaseMaxDurationSeconds;
+    function hasTimeExceeded(uint start) private view returns(bool) {
+        return block.timestamp >= start + joinPhaseMaxDurationSeconds;
     }
 
     function getParticipant(uint256 sessionId, address user) internal view returns (Participant storage) {
         uint256 participantIndex = indexOfParticipant[sessionId][user];
         return sessionIdToParticipants[sessionId][participantIndex];
     } 
+
+    function getParticipant(uint256 sessionId, uint256 userIndex) internal view returns (Participant storage) {
+        return sessionIdToParticipants[sessionId][userIndex];
+    }
 }

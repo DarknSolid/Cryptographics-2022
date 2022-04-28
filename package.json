@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@openzeppelin/contracts": "^4.6.0",
     "babel-polyfill": "^6.26.0",
     "babel-register": "^6.26.0",
     "chai": "^4.3.6",
