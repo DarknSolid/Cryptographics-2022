@@ -84,13 +84,7 @@ contract EuroLotto {
         require (idToSession[currentSessionId].phase == Phase.reveal, "The session is not in reveal phase");
         require(participant.hasRevealed == false, "You have already opened your commitment");// ensure that user has not already opened
         
-        // the strings length for gas efficiency: https://fravoll.github.io/solidity-patterns/string_equality_comparison.html
-        // compare the hashes
-        require(
-            bytes(concatedOpening).length == participant.commitment.length ||
-            openingHash == participant.commitment, 
-            "Your opening is not valid"
-        );
+        require(openingHash == participant.commitment, "Your opening is not valid");
 
         Session storage currentSession = idToSession[currentSessionId];
         participant.hasRevealed = true;
@@ -103,30 +97,30 @@ contract EuroLotto {
     }
 
     function endSession(Session storage session) internal {
-        session.phase = Phase.finished;
 
-        address payable[] memory competingParticipants = new address payable[](session.participantsLength); 
-        uint256 competingParticipantsLength = 0; // index of last added item to "competingParticipants"
+        address payable[] memory competingParticipants = new address payable[](session.amountOfReveals); 
         uint256 messageSum = 0;
         for (uint256 i; i < session.participantsLength; i++) {
             Participant storage participant = getParticipant(currentSessionId, i);
             if (participant.hasRevealed) {
-                competingParticipants[competingParticipantsLength] = participant.user;
-                messageSum += participant.message % session.participantsLength;
-                competingParticipantsLength += 1;
+                competingParticipants[i] = participant.user;
+                messageSum += participant.message % session.amountOfReveals;
+                messageSum = messageSum % session.amountOfReveals;
             }
         }
 
-        uint256 winnerIndex = messageSum % competingParticipantsLength;
+        uint256 winnerIndex = messageSum % session.amountOfReveals;
         address payable winner = competingParticipants[winnerIndex];
 
         uint256 reward = depositAmount * session.participantsLength;
+        session.phase = Phase.finished;
         winner.transfer(reward);
 
         emit SessionEnded(currentSessionId, winner, reward);
         currentSessionId += 1;
     }
 
+    // ============== Helper functions ========================
     function hasTimeExceeded(uint start) private view returns(bool) {
         return block.timestamp >= start + joinPhaseMaxDurationSeconds;
     }
