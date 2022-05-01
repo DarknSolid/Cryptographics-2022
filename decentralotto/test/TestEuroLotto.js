@@ -28,7 +28,8 @@ contract("EuroLotto", ([deployer, user1, user2, user3, user4]) => {
 
   describe("testing joinSession", () => {
     describe("success", () => {
-      it("join not yet started session starts a new session with the single corresponding joining participant", async () => {
+      it.only("join not yet started session starts a new session with the single corresponding joining participant", async () => {
+        let isParticipantBefore = await euroLottoGlobal.isParticipating(1, user1);
         const result = await euroLottoGlobal.joinLotto(testHash, {
           from: user1,
           value: toWei("1"),
@@ -36,6 +37,7 @@ contract("EuroLotto", ([deployer, user1, user2, user3, user4]) => {
         var participant = await euroLottoGlobal.sessionIdToParticipants(1, 0);
         var session = await euroLottoGlobal.idToSession(1);
         var participantId = await euroLottoGlobal.indexOfParticipant(1, user1);
+        let isParticipantAfter = await euroLottoGlobal.isParticipating(1, user1);
         assert.isTrue(participantId == 0);
         assert.isTrue(session["phase"] == PHASE_JOIN);
         assert.isTrue(session["participantsLength"] == 1);
@@ -43,6 +45,9 @@ contract("EuroLotto", ([deployer, user1, user2, user3, user4]) => {
         assert.isTrue(participant["commitment"] == testHash);
         assert.isTrue(participant["hasRevealed"] == false);
         assert.equal(participant["message"].toString(), toBN(0).toString());
+        assert.isTrue(isParticipantAfter);
+        assert.isFalse(isParticipantBefore);
+
       });
       it("join with lacking ether reverts", async () => {
         const result = await euroLottoGlobal

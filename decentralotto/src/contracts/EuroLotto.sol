@@ -96,6 +96,17 @@ contract EuroLotto {
         }
     }
 
+    function forceNextPhase() external {
+        Session storage session = idToSession[currentSessionId];
+        if (session.phase == Phase.notStarted) {
+            session.phase = Phase.join;
+        } else if (session.phase == Phase.join) {
+            session.phase = Phase.reveal;
+        } else {
+            endSession(session);
+        }
+    }
+
     function endSession(Session storage session) internal {
 
         address payable[] memory competingParticipants = new address payable[](session.amountOfReveals); 
@@ -130,7 +141,17 @@ contract EuroLotto {
         return sessionIdToParticipants[sessionId][participantIndex];
     } 
 
+    function getParticipantState(uint256 sessionId, address user) external view returns (Participant memory) {
+        uint256 participantIndex = indexOfParticipant[sessionId][user];
+        return sessionIdToParticipants[sessionId][participantIndex];
+    }
+
     function getParticipant(uint256 sessionId, uint256 userIndex) internal view returns (Participant storage) {
         return sessionIdToParticipants[sessionId][userIndex];
+    }
+
+    function isParticipating(uint256 sessionId, address adr) public view returns(bool result) {
+        uint256 id = indexOfParticipant[sessionId][adr];
+        return sessionIdToParticipants[sessionId][id].user == adr;
     }
 }
