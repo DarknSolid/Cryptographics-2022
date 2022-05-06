@@ -216,6 +216,7 @@ function App() {
     {session !== undefined && session.phase !== PHASE_NOT_STARTED ? 
       <button onClick={() => forceNextPhase()}>Force Next phase</button> : undefined
     }
+    <button onClick={() => syncSession()}>Synchronize</button>
     </div>
   );
 }
