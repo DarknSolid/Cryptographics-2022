@@ -28,7 +28,7 @@ contract("EuroLotto", ([deployer, user1, user2, user3, user4]) => {
 
   describe("testing joinSession", () => {
     describe("success", () => {
-      it.only("join not yet started session starts a new session with the single corresponding joining participant", async () => {
+      it("join not yet started session starts a new session with the single corresponding joining participant", async () => {
         let isParticipantBefore = await euroLottoGlobal.isParticipating(1, user1);
         const result = await euroLottoGlobal.joinLotto(testHash, {
           from: user1,

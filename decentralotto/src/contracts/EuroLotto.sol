@@ -110,17 +110,16 @@ contract EuroLotto {
     function endSession(Session storage session) internal {
 
         address payable[] memory competingParticipants = new address payable[](session.amountOfReveals); 
-        uint256 messageSum = 0;
+        uint256 winnerIndex = 0;
         for (uint256 i; i < session.participantsLength; i++) {
             Participant storage participant = getParticipant(currentSessionId, i);
             if (participant.hasRevealed) {
                 competingParticipants[i] = participant.user;
-                messageSum += participant.message % session.amountOfReveals;
-                messageSum = messageSum % session.amountOfReveals;
+             winnerIndex += participant.message % session.amountOfReveals;
+             winnerIndex = winnerIndex % session.amountOfReveals;
             }
         }
 
-        uint256 winnerIndex = messageSum % session.amountOfReveals;
         address payable winner = competingParticipants[winnerIndex];
 
         uint256 reward = depositAmount * session.participantsLength;
